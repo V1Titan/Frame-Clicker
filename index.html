@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Покадровая щёлкалка MP4</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#101217;color:#f4f5f8}
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;display:flex;justify-content:center;align-items:center;padding:20px}
+main{width:min(1100px,100%)}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+h1{font-size:20px;margin:0;font-weight:650}
+button,.choose{border:1px solid #394253;background:#222b3b;color:white;border-radius:10px;padding:11px 17px;font:inherit;font-weight:600;cursor:pointer}
+button:hover:not(:disabled),.choose:hover{background:#33425b}
+button:disabled{opacity:.35;cursor:default}
+.choose{background:#4966e5;border-color:#4966e5}
+input[type=file]{display:none}
+.stage{background:#000;border:1px solid #323943;border-radius:14px;overflow:hidden;display:grid;place-items:center;min-height:300px;position:relative}
+.stage canvas{max-width:100%;max-height:75vh;width:auto;height:auto;display:block}
+.placeholder{color:#97a3b7;text-align:center;padding:70px 15px;pointer-events:none}
+video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0}
+.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;margin-top:14px}
+.counter{font-variant-numeric:tabular-nums;text-align:center;min-width:195px;line-height:1.5}
+.counter strong{font-size:20px}
+.counter span{display:block;color:#a9b4c6;font-size:13px}
+#scrub{width:100%;margin:16px 0 0;accent-color:#8496ff;cursor:pointer}
+#scrub:disabled{opacity:.4;cursor:default}
+.hint{font-size:13px;color:#8996aa;text-align:center;line-height:1.6;margin:10px 0 0}
+#fpsinfo{color:#aebcf4;font-size:13px;margin-top:4px} 
+.manual{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:#b9c5d8}
+.manual input{width:85px;background:#1b2433;border:1px solid #506078;color:white;padding:8px;border-radius:7px;font:inherit}
+.manual button{padding:8px 12px}
+[hidden]{display:none!important}
+#filename{color:#8795a9;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:370px}
+@media(max-width:500px){body{padding:12px}.stage{min-height:180px}.tools{gap:8px}.tools button{padding:12px}.counter{min-width:120px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><h1>Покадровый MP4</h1><div id="filename">Файл не выбран</div><div id="fpsinfo">FPS: —</div></div>
+  <label class="choose" for="file">Открыть видео</label>
+  <input id="file" type="file" accept="video/mp4,video/*">
+</header>
+<div class="stage" id="drop">
+  <video id="video" playsinline preload="auto" muted></video>
+  <canvas id="frame" hidden></canvas>
+  <div class="placeholder" id="empty">Открой MP4 или перетащи файл сюда</div>
+</div>
+<div class="tools">
+  <button id="prev" disabled title="Предыдущий кадр (←)">← Назад</button>
+  <div class="counter"><strong id="number">— / —</strong><span id="time">—</span></div>
+  <button id="next" disabled title="Следующий кадр (→)">Вперёд →</button>
+</div>
+<input type="range" id="scrub" min="0" max="0" value="0" step="1" disabled aria-label="Номер кадра">
+<div class="manual" id="manual"><label for="manualfps">FPS вручную:</label> <input id="manualfps" type="number" min="0.001" max="1000" step="any" placeholder="30 / 240" disabled><button id="applyfps" disabled>Применить</button><button id="autofps" disabled title="Вернуть автоматически определённый FPS">Вернуть авто</button></div>
+<p class="hint">← и → — по кадру · FPS определяется из MP4/MOV; при необходимости можно задать вручную · шаг без округления до миллисекунд</p>
+</main>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const video=$('video'),canvas=$('frame'),ctx=canvas.getContext('2d',{alpha:false});
+const file=$('file'),prev=$('prev'),next=$('next'),number=$('number'),time=$('time');
+const scrub=$('scrub'),empty=$('empty'),filename=$('filename'),drop=$('drop');
+const fpsinfo=$('fpsinfo'),manualfps=$('manualfps'),applyfps=$('applyfps'),autofps=$('autofps');
+let url=null,serial=0,videoReady=false,parserReady=false,info=null;
+let fps=0,total=0,target=0,displayed=-1,seeking=false,requested=-1,manualMode=false;
+let frameTimes=null;
+const clamp=x=>Math.max(0,Math.min(total-1,Math.round(x)));
+const fmtTime=sec=>`${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toFixed(3).padStart(6,'0')}`;
+const fmtFPS=x=>Math.abs(x-Math.round(x))<0.005?String(Math.round(x)):x.toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
+
+// MP4/MOV: obtain exact sample counts/durations from mdhd + stts, instead of
+// guessing FPS from HTMLMediaElement.duration (which exposes no FPS property).
+const u32=(dv,p)=>dv.getUint32(p,false);
+const u64=(dv,p)=>Number(dv.getBigUint64(p,false));
+function* boxes(dv,start,end){
+  let p=start;
+  while(p+8<=end){
+    const size32=u32(dv,p),type=String.fromCharCode(...new Uint8Array(dv.buffer,dv.byteOffset+p+4,4));
+    const header=size32===1?16:8;
+    if(p+header>end)break;
+    const size=size32===0?end-p:size32===1?u64(dv,p+8):size32;
+    if(!Number.isSafeInteger(size)||size<header||p+size>end)break;
+    yield {type,start:p+header,end:p+size};
+    p+=size;
+  }
+}
+function child(dv,box,type){for(const b of boxes(dv,box.start,box.end))if(b.type===type)return b;return null;}
+function parseTrack(dv,trak){
+  const mdia=child(dv,trak,'mdia'); if(!mdia)return null;
+  const hdlr=child(dv,mdia,'hdlr');
+  if(!hdlr||hdlr.start+12>hdlr.end||String.fromCharCode(...new Uint8Array(dv.buffer,dv.byteOffset+hdlr.start+8,4))!=='vide')return null;
+  const mdhd=child(dv,mdia,'mdhd'),minf=child(dv,mdia,'minf');
+  const stbl=minf&&child(dv,minf,'stbl');
+  const stts=stbl&&child(dv,stbl,'stts');
+  if(!mdhd||!stts)return null;
+  const version=dv.getUint8(mdhd.start),scalePos=mdhd.start+(version===1?20:12);
+  if(scalePos+4>mdhd.end)return null;
+  const scale=u32(dv,scalePos); if(!scale)return null;
+  const n=u32(dv,stts.start+4),entries=[],p=stts.start+8;
+  if(!n||p+n*8>stts.end)return null;
+  let count=0,ticks=0,variable=false,firstDelta=0;
+  for(let i=0;i<n;i++){
+    const qty=u32(dv,p+i*8),delta=u32(dv,p+i*8+4);
+    // Some VFR exporters store a zero duration for their final sample.
+    if(!qty||(delta===0&&(i!==n-1||qty!==1)))return null;
+    count+=qty;ticks+=qty*delta;entries.push([qty,delta]);
+    if(i===0)firstDelta=delta;else if(delta!==firstDelta)variable=true;
+  }
+  if(!Number.isSafeInteger(count)||count>5000000||!ticks)return null;
+  const rate=count*scale/ticks;
+  if(!Number.isFinite(rate)||rate<=0||rate>10000)return null;
+  // B-frames have presentation offsets; account for them on variable-FPS files.
+  const ctts=stbl&&child(dv,stbl,'ctts');
+  let offsets=null;
+  if(variable&&ctts){
+    const ver=dv.getUint8(ctts.start),items=u32(dv,ctts.start+4),q=ctts.start+8;
+    if(q+items*8<=ctts.end){
+      offsets=new Float64Array(count);let idx=0;
+      for(let i=0;i<items&&idx<count;i++){
+        const qty=u32(dv,q+i*8),v=ver===1?dv.getInt32(q+i*8+4,false):u32(dv,q+i*8+4);
+        offsets.fill(v,idx,Math.min(idx+qty,count));idx+=qty;
+      }
+      if(idx!==count)offsets=null;
+    }
+  }
+  let times=null;
+  if(variable){
+    const positions=new Float64Array(count);let i=0,clock=0;
+    for(const [qty,delta] of entries){for(let j=0;j<qty;j++){positions[i]=clock+(offsets?offsets[i]:0);clock+=delta;i++;}}
+    positions.sort();
+    times=new Float64Array(count);
+    const first=positions[0];
+    for(let j=0;j<count;j++)times[j]=(positions[j]-first)/scale;
+  }
+  return {fps:rate,count,variable,times};
+}
+async function getMp4Info(f){
+  if(!/\.(mp4|m4v|mov|3gp|3g2)$/i.test(f.name)&&!/(mp4|quicktime|3gpp)/i.test(f.type))return null;
+  let at=0,loops=0;
+  while(at+8<=f.size&&loops++<2048){
+    const header=new DataView(await f.slice(at,Math.min(f.size,at+16)).arrayBuffer());
+    const size32=u32(header,0),type=String.fromCharCode(...new Uint8Array(header.buffer,4,4));
+    const head=size32===1?16:8;
+    if(header.byteLength<head)return null;
+    const size=size32===0?f.size-at:size32===1?u64(header,8):size32;
+    if(!Number.isSafeInteger(size)||size<head||at+size>f.size)return null;
+    if(type==='moov'){
+      if(size>128*1024*1024)return null;
+      const dv=new DataView(await f.slice(at,at+size).arrayBuffer());
+      const root={start:head,end:size};
+      for(const trak of boxes(dv,root.start,root.end)){
+        if(trak.type==='trak'){
+          const result=parseTrack(dv,trak);
+          if(result)return result;
+        }
+      }
+      return null;
+    }
+    at+=size;
+  }
+  return null;
+}
+function secondsOf(i){return frameTimes?frameTimes[i]:i/fps;}
+function seekTime(i){
+  const start=secondsOf(i);
+  const end=i+1<total?secondsOf(i+1):Number.isFinite(video.duration)?video.duration:start+1/fps;
+  // Seek to the frame's interior, not exactly onto a frame boundary.
+  const middle=start+Math.max(0,(end-start)*0.5);
+  const cutoff=Number.isFinite(video.duration)?Math.max(0,video.duration-0.000001):middle;
+  return Math.min(cutoff,middle);
+}
+function status(){
+  number.textContent=total?`${target+1} / ${total}`:'— / —';
+  time.textContent=total?`${fmtTime(secondsOf(target))} (видео)`:'—';
+  scrub.value=String(target);
+  prev.disabled=!total||target<=0;
+  next.disabled=!total||target>=total-1;
+}
+function show(){
+  if(!video.videoWidth||!video.videoHeight)return;
+  if(canvas.width!==video.videoWidth||canvas.height!==video.videoHeight){canvas.width=video.videoWidth;canvas.height=video.videoHeight;}
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  canvas.hidden=false;empty.hidden=true;
+}
+function seekNext(){
+  if(!total||seeking||displayed===target)return;
+  seeking=true;requested=target;
+  const stop=seekTime(requested);
+  if(Math.abs(video.currentTime-stop)<0.0000001&&video.readyState>=2){
+    show();displayed=requested;seeking=false;status();seekNext();return;
+  }
+  try{video.currentTime=stop;}catch(e){seeking=false;fpsinfo.textContent='Браузер не смог перейти к кадру';}
+}
+video.addEventListener('seeked',()=>{
+  if(!seeking)return;
+  show();displayed=requested;seeking=false;status();seekNext();
+});
+function go(n){if(!total)return;target=clamp(n);status();seekNext();}
+function init(infoData,manualOverride=false){
+  fps=infoData.fps;total=infoData.count;frameTimes=infoData.times||null;manualMode=manualOverride;
+  target=0;displayed=-1;seeking=false;
+  scrub.max=String(total-1);scrub.disabled=false;
+  fpsinfo.textContent=`FPS: ${infoData.variable?'≈':''}${fmtFPS(fps)}${infoData.variable?' (переменный, временные метки)':manualOverride?' (введён вручную)':' (из MP4/MOV)'}`;
+  autofps.disabled=!info||!manualMode;
+  status();seekNext();
+}
+function maybeInit(){
+  if(!videoReady||!parserReady)return;
+  if(manualMode){autofps.disabled=!info;return;}
+  if(info){init(info);return;}
+  fpsinfo.textContent='FPS: не удалось определить автоматически — введи вручную';
+  empty.textContent='Укажи FPS вручную для этого видео';
+}
+function open(f){
+  if(!f)return;
+  const id=++serial;
+  videoReady=false;parserReady=false;info=null;fps=0;total=0;target=0;displayed=-1;seeking=false;frameTimes=null;manualMode=false;
+  if(url)URL.revokeObjectURL(url);
+  url=URL.createObjectURL(f);
+  filename.textContent=f.name;fpsinfo.textContent='FPS: определяю…';
+  manualfps.value='';manualfps.disabled=true;applyfps.disabled=true;autofps.disabled=true;
+  canvas.hidden=true;empty.hidden=false;empty.textContent='Открываю видео…';
+  scrub.disabled=true;status();
+  video.src=url;video.load();
+  getMp4Info(f).catch(()=>null).then(result=>{
+    if(id!==serial)return;
+    info=result;parserReady=true;maybeInit();
+  });
+}
+video.addEventListener('loadedmetadata',()=>{
+  video.pause();videoReady=true;manualfps.disabled=false;applyfps.disabled=false;maybeInit();
+});
+video.addEventListener('error',()=>{
+  total=0;status();empty.hidden=false;empty.textContent='Браузер не может открыть это видео (формат или кодек не поддерживается)';
+  fpsinfo.textContent='FPS: —';videoReady=false;manualfps.disabled=true;applyfps.disabled=true;autofps.disabled=true;
+});
+applyfps.addEventListener('click',()=>{
+  const rate=Number(manualfps.value);
+  if(!videoReady||!manualfps.value.trim()||!Number.isFinite(rate)||rate<=0||rate>1000){manualfps.focus();return;}
+  init({fps:rate,count:Math.max(1,Math.round(video.duration*rate)),times:null,variable:false},true);
+});
+autofps.addEventListener('click',()=>{if(videoReady&&info)init(info);});
+manualfps.addEventListener('keydown',e=>{if(e.key==='Enter')applyfps.click();});
+file.addEventListener('change',()=>open(file.files[0]));
+prev.addEventListener('click',()=>go(target-1));
+next.addEventListener('click',()=>go(target+1));
+scrub.addEventListener('input',()=>go(Number(scrub.value)));
+document.addEventListener('keydown',e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+  if(e.key==='ArrowLeft'){e.preventDefault();go(target-1);}
+  if(e.key==='ArrowRight'){e.preventDefault();go(target+1);}
+});
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.outline='2px dashed #8496ff';});
+drop.addEventListener('dragleave',()=>drop.style.outline='');
+drop.addEventListener('drop',e=>{
+  e.preventDefault();drop.style.outline='';
+  const f=[...e.dataTransfer.files].find(x=>/\.(mp4|mov|m4v|webm|3gp)$/i.test(x.name)||x.type.startsWith('video/'));
+  open(f);
+});
+window.addEventListener('beforeunload',()=>{if(url)URL.revokeObjectURL(url);});
+})();
+</script>
+</body>
+</html>
