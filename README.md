@@ -1,101 +1,106 @@
 # Frame-Clicker
 
-[English instructions](#getting-started) · [Инструкция на русском](#инструкция-на-русском)
+**[English](#english) · [Русский](#русский)**
 
-**A lightweight, browser-based video frame viewer. No installation, dependencies, or uploads required.**
+A lightweight, free browser-based tool for inspecting local videos frame by frame. **No installation, video uploads, or external libraries required.**
 
-Frame-Clicker lets you inspect a local video one frame at a time, see its frame number, and navigate through the recording. It attempts to detect the video’s frame rate (FPS) automatically and also lets you set the FPS manually.
+**[▶ Open Frame-Clicker online](https://v1titan.github.io/Frame-Clicker/)** · **[⬇ Download for offline use (Releases)](https://github.com/V1Titan/Frame-Clicker/releases/latest)**
 
-## Features
-
-- **Automatic FPS detection** from timing metadata in supported MP4/MOV files.
-- **Frame-by-frame navigation** using the Previous / Next buttons or the `←` / `→` arrow keys.
-- **Frame slider** for jumping to a specific position in the video.
-- **Frame counter** showing the current frame number and estimated total, plus a timestamp.
-- **Variable frame rate (VFR) support:** uses sample timing information when available; the displayed FPS is an average for VFR video.
-- **Manual FPS override at any time,** even when automatic detection works. Use the restore-auto button to return to the detected rate when available.
-- **Drag and drop** to open video files.
-- **Single-file application:** plain HTML, CSS, and JavaScript. No build step or third-party libraries.
-
-## Getting started
-
-1. Download [`index.html`](./index.html).
-2. Open it in a modern browser.
-3. Click **Открыть видео** (Open video), or drag a video file into the window.
-4. Use the buttons, arrow keys, or slider to navigate.
-5. To override the frame rate, enter a value such as `240` in the manual FPS field and click **Применить** (Apply). Click **Вернуть авто** (Restore auto) to switch back to the detected rate, if available.
-
-The application works locally and does not need an internet connection.
-
-## How FPS detection works
-
-Frame-Clicker reads timing metadata from supported MP4/MOV video tracks, including the `mdhd` media timescale and the `stts` sample timing table. For some variable-frame-rate files, it builds a frame timestamp sequence, accounting for `ctts` composition offsets when available and applicable.
-
-When you enter FPS manually, the application estimates the total number of frames using the video duration and the rate you provided. Manual mode uses evenly spaced frame times, even for VFR video. Restoring automatic mode brings back the available metadata-based timing information.
-
-## Limitations
-
-- **Frame-accurate decoding is not guaranteed.** Frame-Clicker seeks to calculated timestamps via the browser's `HTMLMediaElement.currentTime` API. Depending on the video, codec, and browser, the displayed frame might not exactly match the frame number shown; frames may be repeated or skipped. The frame counter indicates the **requested frame**, not a verified decoded-frame index.
-- **Codec support depends on your browser.** A `.mp4` extension alone does not guarantee playback.
-- **FPS detection is not universal.** Unsupported formats or file structures may require manual FPS entry.
-- **For VFR video, the displayed FPS is an average,** not a constant rate between frames.
-- This is a manual video inspection tool, not an automatic input-lag measurement system.
-
-## Privacy
-
-Selected video files are processed locally in the browser. The application code does not upload the video to a server.
-
-## Optional: Publish with GitHub Pages
-
-To let others use Frame-Clicker through a link:
-
-1. Upload `index.html`, `README.md`, and `LICENSE` to the root of a public GitHub repository.
-2. Open **Settings → Pages**.
-3. Under **Build and deployment**, select **Deploy from a branch**, choose `main`, and set the folder to `/ (root)`.
-4. Save your settings and use the URL provided by GitHub Pages.
-
-## Tech stack
-
-HTML · CSS · Vanilla JavaScript · HTML5 Video · Canvas
-
-## License
-
-Distributed under the [MIT License](./LICENSE).
-
+The interface is available in **English and Russian**. Select `EN` or `RU` in the upper-right corner. The default follows your browser language; the app remembers your choice when browser storage is available.
 
 ---
 
-## Инструкция на русском
+## English
 
-**Frame-Clicker** — простой инструмент для покадрового просмотра видео прямо в браузере. Устанавливать программы и загружать видео на сервер не требуется.
+### How to start
+
+**Option 1 — Online (recommended):** Open **[Frame-Clicker on GitHub Pages](https://v1titan.github.io/Frame-Clicker/)**. No download needed.
+
+**Option 2 — Offline:**
+
+1. Open **[the latest Release](https://github.com/V1Titan/Frame-Clicker/releases/latest)**.
+2. Expand **Assets** and download **`Frame-Clicker.html`** (the standalone HTML file, **not** “Source code (zip)”).
+3. Double-click the downloaded HTML file to open it in a modern browser. It works without an internet connection.
+
+**Option 3 — Entire source repository:** On the [repository page](https://github.com/V1Titan/Frame-Clicker), choose **Code → Download ZIP**, extract it, and open `index.html`. This option is intended for those who want the source files.
+
+### Using the viewer
+
+1. Click **Open video** or drag a video into the viewer.
+2. Use **← Previous** / **Next →**, the keyboard arrow keys, or the slider to navigate by requested frame positions.
+3. The counter displays the requested frame number, estimated total frame count, and video timestamp.
+4. If FPS detection fails or you want to override it, enter a value (e.g. `30`, `60`, `120`, or `240`) into **Manual FPS** and click **Apply**.
+5. Click **Restore auto** to use the automatically detected FPS again, when available.
+
+### Features
+
+- Automatic frame-rate detection using timing metadata from supported MP4/MOV files.
+- Frame-by-frame seeking with buttons, keyboard shortcuts, and slider.
+- Support for variable frame rate (VFR) timing metadata when available; VFR FPS is shown as an average.
+- Manual FPS override and restoration of automatic timing.
+- Local drag-and-drop video playback; one HTML file and no third-party dependencies.
+- English and Russian interface with a language switch.
+
+### Important limitations
+
+- **Exact decoded-frame accuracy is not guaranteed.** The tool seeks using the browser's video timestamp API. Some codecs, recordings, and browsers may repeat or skip displayed frames. **The counter shows a requested position, not a verified decoded-frame number.**
+- FPS detection may not work with all formats or file structures. You can enter FPS manually; that assumes evenly spaced frame times even for VFR recordings.
+- Use the FPS of the **saved video file**, which may differ from the camera's capture rate. Manually changing FPS here does not add frames to the file.
+- Video playback and codec support depend on the browser.
+- This is a frame-inspection viewer, not an automated input-lag measurement system.
+
+### Privacy and technology
+
+Videos are processed locally in your browser; the application does not upload them to a server. Built with HTML, CSS, vanilla JavaScript, HTML5 Video and Canvas.
+
+Licensed under the [MIT License](./LICENSE).
+
+---
+
+## Русский
+
+**Frame-Clicker** — бесплатный инструмент для покадрового просмотра видео в браузере. Ничего устанавливать и загружать на сервер не нужно.
 
 ### Как запустить
 
-1. Скачайте файл [`index.html`](./index.html) из репозитория.
-2. Откройте его двойным щелчком в браузере (например, Chrome или Edge).
-3. Нажмите **«Открыть видео»** и выберите запись. Также файл можно перетащить в окно приложения.
-4. Подождите, пока браузер откроет видео, а программа попробует определить FPS.
+**Вариант 1 — Онлайн (рекомендуется):** откройте **[Frame-Clicker на GitHub Pages](https://v1titan.github.io/Frame-Clicker/)**. Скачивать ничего не нужно.
 
-### Как переключать кадры
+**Вариант 2 — Без интернета:**
 
-- Нажимайте **«← Назад»** или **«Вперёд →»** для перехода на один расчётный кадр.
-- Используйте клавиши **←** и **→** на клавиатуре.
-- Перетаскивайте **ползунок** внизу, чтобы перейти к нужному месту.
-- Счётчик показывает **номер выбранного кадра / общее количество кадров**, а ниже — время в видео.
+1. Перейдите в **[последний релиз (Releases)](https://github.com/V1Titan/Frame-Clicker/releases/latest)**.
+2. Раскройте **Assets** и скачайте **`Frame-Clicker.html`** (сам HTML-файл, **не** архив «Source code (zip)»).
+3. Откройте скачанный HTML-файл двойным щелчком в браузере. Подключение к интернету не требуется.
 
-### Как изменить FPS вручную
+**Вариант 3 — Исходники проекта:** на [странице репозитория](https://github.com/V1Titan/Frame-Clicker) нажмите **Code → Download ZIP**, распакуйте архив и откройте `index.html`. Это вариант для тех, кому нужен весь исходный код.
 
-1. После открытия видео найдите поле **«FPS вручную»**.
-2. Введите частоту кадров, например `30`, `60`, `120` или `240`.
-3. Нажмите **«Применить»** — программа пересчитает шаг переключения и примерное количество кадров с указанным FPS.
-4. Чтобы вернуться к автоматически обнаруженной частоте, нажмите **«Вернуть авто»** (кнопка доступна, если FPS удалось определить).
+### Как пользоваться
 
-**Важно:** ручной ввод FPS не меняет само видео и не создаёт дополнительных кадров. Указывайте частоту **сохранённого видеофайла**, а не обязательно частоту, с которой камера снимала исходный материал. Если ролик был записан при 240 FPS, но сохранён с частотой 30 FPS, для просмотра кадров именно сохранённого файла обычно нужно ориентироваться на 30 FPS.
+1. Нажмите **«Открыть видео»** или перетащите видео в окно приложения.
+2. Переключайте позиции кнопками **«← Назад»** / **«Вперёд →»**, стрелками на клавиатуре или ползунком.
+3. Счётчик показывает номер запрошенного кадра, оценку общего количества кадров и время в видео.
+4. Если FPS не определился или его нужно изменить, введите `30`, `60`, `120`, `240` или другое значение в поле **«FPS вручную»** и нажмите **«Применить»**.
+5. Для возврата к автоматически определённому FPS нажмите **«Вернуть авто»** (если автоматическое определение удалось).
+6. Чтобы переключить интерфейс, выберите **RU** или **EN** в правом верхнем углу.
 
-### Если что-то не работает
+### Возможности
 
-- **FPS не определился:** введите его вручную.
-- **Видео не открывается:** возможно, браузер не поддерживает используемый кодек. Расширение `.mp4` само по себе не гарантирует поддержку.
-- **Кадр визуально не меняется после нажатия:** браузер может показывать тот же декодированный кадр при переходе по временной метке. Точное покадровое декодирование этим способом не гарантируется. **Номер на счётчике — это запрошенная позиция, а не подтверждённый номер реально показанного кадра.**
+- Определение FPS по временным меткам поддерживаемых MP4/MOV-файлов.
+- Переход по расчётным кадрам кнопками, клавиатурой и ползунком.
+- Частичная поддержка видео с переменным FPS (VFR): используются временные метки, когда они доступны; FPS отображается как среднее значение.
+- Ручной ввод FPS с возможностью вернуться к автоматическому режиму.
+- Перетаскивание видео в окно; всё приложение — один HTML-файл без библиотек.
+- Русский и английский интерфейс.
 
-Файл работает локально, без установки зависимостей и подключения к интернету. Приложение не отправляет выбранное видео на сервер.
+### Ограничения — важно прочитать
+
+- **Точность отображаемого кадра не гарантируется.** Переход выполняется по временным меткам через браузерный видеоплеер. Отдельные кадры могут повторяться или пропускаться. **Номер в счётчике — запрошенная позиция, а не проверенный номер декодированного кадра.**
+- Автоматическое определение FPS работает не со всеми файлами. Ручной FPS предполагает равные интервалы между кадрами, даже если исходный файл записан с переменной частотой.
+- Указывайте FPS **сохранённого файла**, а не обязательно частоту исходной съёмки. Ручной ввод FPS не создаёт дополнительных кадров.
+- Если видео не открывается, возможно, браузер не поддерживает формат или кодек.
+- Программа не выполняет автоматического измерения input lag.
+
+### Конфиденциальность и технология
+
+Выбранные видео обрабатываются локально в браузере и не отправляются на сервер. Используются HTML, CSS, обычный JavaScript, HTML5 Video и Canvas.
+
+Лицензия — [MIT](./LICENSE).
